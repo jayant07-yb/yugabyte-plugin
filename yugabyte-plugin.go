@@ -1,4 +1,4 @@
-package yugabyte-plugin
+package yugabyte
 
 import (
 	"context"

@@ -1,12 +1,13 @@
-package yugabyte-plugin
+package yugabyte
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/pkg/errors"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/hashicorp/errwrap"
 	"github.com/mitchellh/mapstructure"
