@@ -1,29 +1,33 @@
-package main
+package yugabyte-plugin
+
 
 import (
-	"log"
-	"os"
+  "github.com/hashicorp/vault/api"
+    "github.com/hashicorp/vault/sdk/database/dbplugin/v5"
 
-	"github.com/hashicorp/vault/plugins/database/yugabyte"
-	dbplugin "github.com/hashicorp/vault/sdk/database/dbplugin/v5"
-)
+      "log"
+        "os"
+        )
 
-func main() {
-	err := Run()
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
-}
+        func main() {
+          apiClientMeta := &api.PluginAPIClientMeta{}
+            flags := apiClientMeta.FlagSet()
+              flags.Parse(os.Args[1:])
 
-// Run instantiates a PostgreSQL object, and runs the RPC server for the plugin
-func Run() error {
-	dbType, err := yugabyte.New()
-	if err != nil {
-		return err
-	}
+                err := Run()
+                  if err != nil {
+                      log.Println(err)
+                          os.Exit(1)
+                            }
+                            }
 
-	dbplugin.Serve(dbType.(dbplugin.Database))
+                            func Run() error {
+                              dbType, err := New()
+                                if err != nil {
+                                    return err
+                                      }
 
-	return nil
-}
+                                        dbplugin.Serve(dbType.(dbplugin.Database))
+
+                                          return nil
+                                          }
