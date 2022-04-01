@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	YugabyteDBTypeName         = "yugabyte"
+	postgreSQLTypeName         = "postgres"
 	defaultExpirationStatement = `
 ALTER ROLE "{{name}}" VALID UNTIL '{{expiration}}';
 `
@@ -32,12 +32,12 @@ ALTER ROLE "{{username}}" WITH PASSWORD '{{password}}';
 )
 
 var (
-	_ dbplugin.Database = &YugabyteDB{}
+	_ dbplugin.Database = &PostgreSQL{}
 
-	// yugabyteEndStatement is basically the word "END" but
+	// postgresEndStatement is basically the word "END" but
 	// surrounded by a word boundary to differentiate it from
 	// other words like "APPEND".
-	yugabyteEndStatement = regexp.MustCompile(`\bEND\b`)
+	postgresEndStatement = regexp.MustCompile(`\bEND\b`)
 
 	// doubleQuotedPhrases finds substrings like "hello"
 	// and pulls them out with the quotes included.
@@ -55,24 +55,24 @@ func New() (interface{}, error) {
 	return dbType, nil
 }
 
-func new() *YugabyteDB {
+func new() *PostgreSQL {
 	connProducer := &connutil.SQLConnectionProducer{}
-	connProducer.Type = YugabyteDBTypeName
+	connProducer.Type = postgreSQLTypeName
 
-	db := &YugabyteDB{
+	db := &PostgreSQL{
 		SQLConnectionProducer: connProducer,
 	}
 
 	return db
 }
 
-type YugabyteDB struct {
+type PostgreSQL struct {
 	*connutil.SQLConnectionProducer
 
 	usernameProducer template.StringTemplate
 }
 
-func (p *YugabyteDB) Initialize(ctx context.Context, req dbplugin.InitializeRequest) (dbplugin.InitializeResponse, error) {
+func (p *PostgreSQL) Initialize(ctx context.Context, req dbplugin.InitializeRequest) (dbplugin.InitializeResponse, error) {
 	newConf, err := p.SQLConnectionProducer.Init(ctx, req.Config, req.VerifyConnection)
 	if err != nil {
 		return dbplugin.InitializeResponse{}, err
@@ -103,11 +103,11 @@ func (p *YugabyteDB) Initialize(ctx context.Context, req dbplugin.InitializeRequ
 	return resp, nil
 }
 
-func (p *YugabyteDB) Type() (string, error) {
-	return YugabyteDBTypeName, nil
+func (p *PostgreSQL) Type() (string, error) {
+	return postgreSQLTypeName, nil
 }
 
-func (p *YugabyteDB) getConnection(ctx context.Context) (*sql.DB, error) {
+func (p *PostgreSQL) getConnection(ctx context.Context) (*sql.DB, error) {
 	db, err := p.Connection(ctx)
 	if err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func (p *YugabyteDB) getConnection(ctx context.Context) (*sql.DB, error) {
 	return db.(*sql.DB), nil
 }
 
-func (p *YugabyteDB) UpdateUser(ctx context.Context, req dbplugin.UpdateUserRequest) (dbplugin.UpdateUserResponse, error) {
+func (p *PostgreSQL) UpdateUser(ctx context.Context, req dbplugin.UpdateUserRequest) (dbplugin.UpdateUserResponse, error) {
 	if req.Username == "" {
 		return dbplugin.UpdateUserResponse{}, fmt.Errorf("missing username")
 	}
@@ -136,7 +136,7 @@ func (p *YugabyteDB) UpdateUser(ctx context.Context, req dbplugin.UpdateUserRequ
 	return dbplugin.UpdateUserResponse{}, merr.ErrorOrNil()
 }
 
-func (p *YugabyteDB) changeUserPassword(ctx context.Context, username string, changePass *dbplugin.ChangePassword) error {
+func (p *PostgreSQL) changeUserPassword(ctx context.Context, username string, changePass *dbplugin.ChangePassword) error {
 	stmts := changePass.Statements.Commands
 	if len(stmts) == 0 {
 		stmts = []string{defaultChangePasswordStatement}
@@ -193,7 +193,7 @@ func (p *YugabyteDB) changeUserPassword(ctx context.Context, username string, ch
 	return nil
 }
 
-func (p *YugabyteDB) changeUserExpiration(ctx context.Context, username string, changeExp *dbplugin.ChangeExpiration) error {
+func (p *PostgreSQL) changeUserExpiration(ctx context.Context, username string, changeExp *dbplugin.ChangeExpiration) error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -238,7 +238,7 @@ func (p *YugabyteDB) changeUserExpiration(ctx context.Context, username string, 
 	return tx.Commit()
 }
 
-func (p *YugabyteDB) NewUser(ctx context.Context, req dbplugin.NewUserRequest) (dbplugin.NewUserResponse, error) {
+func (p *PostgreSQL) NewUser(ctx context.Context, req dbplugin.NewUserRequest) (dbplugin.NewUserResponse, error) {
 	if len(req.Statements.Commands) == 0 {
 		return dbplugin.NewUserResponse{}, dbutil.ErrEmptyCreationStatement
 	}
@@ -307,7 +307,7 @@ func (p *YugabyteDB) NewUser(ctx context.Context, req dbplugin.NewUserRequest) (
 	return resp, nil
 }
 
-func (p *YugabyteDB) DeleteUser(ctx context.Context, req dbplugin.DeleteUserRequest) (dbplugin.DeleteUserResponse, error) {
+func (p *PostgreSQL) DeleteUser(ctx context.Context, req dbplugin.DeleteUserRequest) (dbplugin.DeleteUserResponse, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -318,7 +318,7 @@ func (p *YugabyteDB) DeleteUser(ctx context.Context, req dbplugin.DeleteUserRequ
 	return dbplugin.DeleteUserResponse{}, p.customDeleteUser(ctx, req.Username, req.Statements.Commands)
 }
 
-func (p *YugabyteDB) customDeleteUser(ctx context.Context, username string, revocationStmts []string) error {
+func (p *PostgreSQL) customDeleteUser(ctx context.Context, username string, revocationStmts []string) error {
 	db, err := p.getConnection(ctx)
 	if err != nil {
 		return err
@@ -352,7 +352,7 @@ func (p *YugabyteDB) customDeleteUser(ctx context.Context, username string, revo
 	return tx.Commit()
 }
 
-func (p *YugabyteDB) defaultDeleteUser(ctx context.Context, username string) error {
+func (p *PostgreSQL) defaultDeleteUser(ctx context.Context, username string) error {
 	db, err := p.getConnection(ctx)
 	if err != nil {
 		return err
@@ -463,7 +463,7 @@ func (p *YugabyteDB) defaultDeleteUser(ctx context.Context, username string) err
 	return nil
 }
 
-func (p *YugabyteDB) secretValues() map[string]string {
+func (p *PostgreSQL) secretValues() map[string]string {
 	return map[string]string{
 		p.Password: "[password]",
 	}
@@ -475,7 +475,7 @@ func (p *YugabyteDB) secretValues() map[string]string {
 func containsMultilineStatement(stmt string) bool {
 	// We're going to look for the word "END", but first let's ignore
 	// anything the user provided within single or double quotes since
-	// we're looking for an "END" within the yugabyte syntax.
+	// we're looking for an "END" within the Postgres syntax.
 	literals, err := extractQuotedStrings(stmt)
 	if err != nil {
 		return false
@@ -487,7 +487,7 @@ func containsMultilineStatement(stmt string) bool {
 	// Now look for the word "END" specifically. This will miss any
 	// representations of END that aren't surrounded by spaces, but
 	// it should be easy to change on the user's side.
-	return yugabyteEndStatement.MatchString(stmtWithoutLiterals)
+	return postgresEndStatement.MatchString(stmtWithoutLiterals)
 }
 
 // extractQuotedStrings extracts 0 or many substrings
